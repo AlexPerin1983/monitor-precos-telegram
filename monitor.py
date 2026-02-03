@@ -110,23 +110,28 @@ def main():
             current_price = extract_price_from_html(response.text, selector)
             
             if current_price is None:
-                print(f"  [AVISO] Não foi possível encontrar o preço para {name}")
+                error_msg = f"⚠️ [AVISO] Não foi possível encontrar o preço para {name}. Verifique se o CSS Selector '{selector}' ainda é válido ou se o site mudou."
+                print(error_msg)
+                # Opcional: Descomente a linha abaixo se quiser receber erro no Telegram também
+                # send_telegram_message(error_msg)
                 continue
 
             last_price = state.get(url)
             
             msg = None
             if last_price is None:
+                # MUDANÇA: Avisa quando o produto é monitorado pela primeira vez
+                msg = f"✅ *Monitoramento Iniciado!*\n\n*Produto:* {name}\n*Preço atual:* R$ {current_price:.2f}\n\nAgora estou vigiando este preço de hora em hora para você!"
                 print(f"  Preço inicial detectado: R$ {current_price:.2f}")
                 new_state[url] = current_price
-            elif current_price != last_price:
+            elif abs(current_price - last_price) > 0.01: # Pequena margem para evitar avisos por centavos de arredondamento
                 diff = current_price - last_price
-                trend = "aumentou" if diff > 0 else "baixou"
+                trend = "aumentou 📈" if diff > 0 else "baixou 📉"
                 msg = f"🔔 *Alteração de Preço!*\n\n*Produto:* {name}\n*De:* R$ {last_price:.2f}\n*Para:* R$ {current_price:.2f} ({trend})\n\n[Ver no site]({url})"
                 print(f"  [MUDANÇA] R$ {last_price:.2f} -> R$ {current_price:.2f}")
                 new_state[url] = current_price
             else:
-                print(f"  Sem alteração: R$ {current_price:.2f}")
+                print(f"  Sem alteração relevante: R$ {current_price:.2f}")
 
             # Alerta de valor alvo
             if target and current_price <= target:
