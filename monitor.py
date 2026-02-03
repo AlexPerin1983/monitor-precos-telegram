@@ -231,18 +231,36 @@ def main():
                     current_price = extract_price_from_html(resp.text, name)
              except Exception as e:
                 print(f"  [ERRO HTML] {e}")
+        try: # Moved the try block to encompass the entire product processing
+            # TENTATIVA 1: API Oficial (A melhor opção se disponível)
+            if ml_id:
+                current_price = fetch_price_from_api(session, ml_id)
 
-        # TENTATIVA 3: Busca (Último recurso)
-        if current_price is None and ml_id:
-             current_price = fetch_price_from_search(session, ml_id)
-
-        if current_price is None:
-            print(f"  [AVISO] Preço não encontrado após todas tentativas.")
-            continue
-            
+            # TENTATIVA 2: Acesso direto HTML (Backup)
             if current_price is None:
-                print(f"  [AVISO] Preço não encontrado")
+                 try:
+                    resp = session.get(url, timeout=30)
+                    soup = BeautifulSoup(resp.text, 'html.parser')
+                    title = soup.title.string if soup.title else ""
+                    
+                    if "Mercado Livre" in title and len(title) < 20: 
+                         print("  [BLOQUEIO] Redirecionado para Home.")
+                    else:
+                        current_price = extract_price_from_html(resp.text, name)
+                 except Exception as e:
+                    print(f"  [ERRO HTML] {e}")
+
+            # TENTATIVA 3: Busca (Último recurso)
+            if current_price is None and ml_id:
+                 current_price = fetch_price_from_search(session, ml_id)
+
+            if current_price is None:
+                print(f"  [AVISO] Preço não encontrado após todas tentativas.")
                 continue
+                
+            # The following block was incorrectly indented and duplicated.
+            # It should execute if current_price is NOT None.
+            # The inner `if current_price is None:` was unreachable and redundant.
 
             # Atualiza no banco de dados
             supabase.table("products").update({
@@ -264,6 +282,7 @@ def main():
 
         except Exception as e:
             print(f"  [ERRO] {name}: {e}")
+            send_telegram_message(f"🚨 *Erro no Monitoramento!*\n\n*Produto:* {name}\n*Erro:* {e}")
 
 if __name__ == "__main__":
     main()
