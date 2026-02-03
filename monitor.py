@@ -56,10 +56,19 @@ def extract_price_from_html(html, selector=None):
             if price_val:
                 return price_val
 
-    # 2. Fallback: Regex por R$
-    matches = re.findall(r'R\$\s?(\d{1,3}(?:\.\d{3})*,\d{2})', html)
+    # 2. Fallback 1: Busca em tags meta (comum em lojas como Amazon/Shopee para SEO)
+    meta_price = soup.find("meta", property="product:price:amount") or soup.find("meta", property="og:price:amount")
+    if meta_price:
+        return parse_price(meta_price.get("content"))
+
+    # 3. Fallback 2: Regex agressivo no HTML bruto
+    # Procura por R$ ou RS seguido de números, pontos e vírgulas
+    matches = re.findall(r'(?:R\$|RS)\s?(\d{1,3}(?:\.\d{3})*,\d{2})', html)
     if matches:
-        return parse_price(matches[0])
+        # Filtra valores muito baixos (provavelmente frete) se houver múltiplos
+        valid_prices = [parse_price(m) for m in matches if parse_price(m) > 10.0]
+        if valid_prices:
+            return valid_prices[0]
     
     return None
 
