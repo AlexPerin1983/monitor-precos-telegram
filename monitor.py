@@ -113,13 +113,44 @@ def main():
     
     print(f"Iniciando monitoramento de {len(PRODUCTS)} produtos...")
     
-    print(f"Iniciando TESTE DE CONEXÃO...")
-    
-    # MENSAGEM DE TESTE DIRETO
-    test_msg = "🚀 *Monitor Online!*\n\nO robô rodou com sucesso no GitHub Actions e a conexão com o seu Telegram está perfeita.\n\nPróximo passo: Adicionar links de sites que permitam acesso (evite Amazon/Shopee no GitHub)."
-    
-    send_telegram_message(test_msg)
-    print("Mensagem de teste enviada para o Telegram.")
+    for product in PRODUCTS:
+        name = product['name']
+        url = product['url']
+        selector = product.get('css_selector')
+        target = product.get('target_price')
+        
+        print(f"Verificando: {name}...")
+        
+        try:
+            response = requests.get(url, headers=get_headers(), timeout=20)
+            response.raise_for_status()
+            
+            current_price = extract_price_from_html(response.text, selector)
+            
+            if current_price is None:
+                error_msg = f"⚠️ [AVISO] Não foi possível encontrar o preço para {name}."
+                print(error_msg)
+                continue
+
+            last_price = state.get(url)
+            
+            if last_price is None:
+                msg = f"✅ *Monitoramento Iniciado!*\n\n*Produto:* {name}\n*Preço atual:* R$ {current_price:.2f}"
+                send_telegram_message(msg)
+                new_state[url] = current_price
+            elif abs(current_price - last_price) > 0.01:
+                diff = current_price - last_price
+                trend = "aumentou 📈" if diff > 0 else "baixou 📉"
+                msg = f"🔔 *Alteração de Preço!*\n\n*Produto:* {name}\n*De:* R$ {last_price:.2f}\n*Para:* R$ {current_price:.2f} ({trend})\n\n[Ver no site]({url})"
+                send_telegram_message(msg)
+                new_state[url] = current_price
+
+            if target and current_price <= target:
+                target_msg = f"🎯 *Preço Alvo Atingido!*\n\n*Produto:* {name}\n*Preço atual:* R$ {current_price:.2f}\n*Alvo:* R$ {target:.2f}"
+                send_telegram_message(target_msg)
+                
+        except Exception as e:
+            print(f"  [ERRO] Falha ao processar {name}: {e}")
             
     save_state(new_state)
     print("Monitoramento concluído.")
