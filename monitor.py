@@ -106,10 +106,23 @@ def extract_price_from_html(html, name=""):
             p = parse_price(element.get("content"))
             if p: return p
 
-    # 4. Fallback: Logue o início do HTML para debug se nada funcionar
-    print(f"  [DEBUG] Não achei preço em {name}. Título da página capturada: {title}")
-    # print(f"  [DEBUG] Primeiros 200 caracteres: {html[:200].strip()}")
-    
+    # 4. Fallback: Busca Ultra-Agressiva no código-fonte bruto
+    # Remove espaços em branco extras para facilitar o regex
+    raw_clean = re.sub(r'\s+', '', html)
+    # Procura por R$ seguido de um número brasileiro (ex: 1.545,00 ou 1.545)
+    # Pegamos o primeiro valor acima de 100 reais para evitar "preços de parcelas"
+    matches = re.findall(r'R\$(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)', raw_clean)
+    if matches:
+        prices = []
+        for m in matches:
+            val = parse_price(m)
+            if val and val > 100.0: prices.append(val)
+        
+        if prices:
+            # Pegamos o valor mais comum ou o primeiro grande encontrado
+            return prices[0]
+
+    print(f"  [DEBUG] Não achei preço em {name}. Título da página: {title}")
     return None
 
 def send_telegram_message(message):
