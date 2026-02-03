@@ -24,11 +24,22 @@ def get_headers():
 
 def parse_price(price_str):
     if not price_str: return None
+    # Remove tudo que não é número, ponto ou vírgula
     cleaned = re.sub(r'[^\d,\.]', '', str(price_str))
-    if ',' in cleaned and '.' in cleaned:
-        cleaned = cleaned.replace('.', '').replace(',', '.')
-    elif ',' in cleaned:
-        cleaned = cleaned.replace(',', '.')
+    
+    if not cleaned: return None
+
+    # Caso 1: Formato 1.545,00 ou 1.545
+    if ',' in cleaned:
+        # Se tem vírgula, assume que é o decimal brasileiro
+        parts = cleaned.split(',')
+        inteira = parts[0].replace('.', '')
+        decimal = parts[1] if len(parts) > 1 else '00'
+        cleaned = f"{inteira}.{decimal}"
+    else:
+        # Se não tem vírgula, remove pontos de milhar
+        cleaned = cleaned.replace('.', '')
+        
     try:
         return float(cleaned)
     except ValueError:
@@ -36,20 +47,32 @@ def parse_price(price_str):
 
 def extract_price_from_html(html, selector=None):
     soup = BeautifulSoup(html, 'html.parser')
+    
+    # 1. Tenta por Meta Tags (Mercado Livre usa muito)
+    meta_price = soup.find("meta", property="product:price:amount") or \
+                 soup.find("meta", property="og:price:amount") or \
+                 soup.find("meta", itemprop="price")
+    if meta_price:
+        p = parse_price(meta_price.get("content"))
+        if p: return p
+
+    # 2. Tenta pelo seletor CSS se fornecido
     if selector:
         element = soup.select_one(selector)
         if element:
-            price_val = parse_price(element.get_text())
-            if price_val: return price_val
+            p = parse_price(element.get_text())
+            if p: return p
 
-    meta_price = soup.find("meta", property="product:price:amount") or soup.find("meta", property="og:price:amount")
-    if meta_price:
-        return parse_price(meta_price.get("content"))
-
-    matches = re.findall(r'(?:R\$|RS)\s?(\d{1,3}(?:\.\d{3})*,\d{2})', html)
+    # 3. Regex Robusto (R$ 1.545 ou R$ 1.545,00)
+    matches = re.findall(r'(?:R\$|RS)\s?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)', html)
     if matches:
-        valid_prices = [parse_price(m) for m in matches if parse_price(m) > 10.0]
+        valid_prices = []
+        for m in matches:
+            val = parse_price(m)
+            if val and val > 50.0: # Filtra valores muito baixos (frete/taxas)
+                valid_prices.append(val)
         if valid_prices: return valid_prices[0]
+    
     return None
 
 def send_telegram_message(message):
