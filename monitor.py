@@ -131,9 +131,8 @@ def send_telegram_message(message):
     except: pass
 
 def main():
-    # Cria uma sessão que, nativamente, age EXATAMENTE como o Chrome 120
-    # Isso resolve o problema do TLS Fingerprint (assinatura digital)
-    session = requests.Session(impersonate="chrome120")
+    # Trocando a identidade para Safari (iPhone/Mac) que costuma ter "passe livre"
+    session = requests.Session(impersonate="safari15_5")
     
     # 1. Busca produtos do Supabase
     response = supabase.table("products").select("*").execute()
@@ -142,17 +141,22 @@ def main():
     print(f"Iniciando monitoramento de {len(products)} produtos via Supabase...")
     
     for product in products:
-        time.sleep(3) # Pausa maior para não assustar o servidor
+        time.sleep(3)
         p_id = product['id']
         name = product['name']
+        
+        # Limpa sujeira da URL (parâmetros de rastreamento que ativam alertas)
         url = product['url']
+        if "?" in url and "_JM" in url:
+            url = url.split("?")[0]
+            
         target = product.get('target_price')
         last_price = product.get('current_price')
         
         print(f"Verificando: {name}...")
         
         try:
-            # Tenta carregar a página com a sessão
+            # Tenta carregar a página com a sessão Safari
             resp = session.get(url, timeout=30)
             
             # Verifica se fomos redirecionados para a home ou login
