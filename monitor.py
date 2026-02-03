@@ -20,6 +20,11 @@ def get_headers():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": "https://www.google.com.br/",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "cross-site",
+        "Upgrade-Insecure-Requests": "1"
     }
 
 def parse_price(price_str):
@@ -45,14 +50,37 @@ def parse_price(price_str):
     except ValueError:
         return None
 
-def extract_price_from_html(html, selector=None):
+def extract_price_from_html(html, name=""):
     soup = BeautifulSoup(html, 'html.parser')
     
-    # 1. Tenta por seletores específicos das maiores lojas
-    # Mercado Livre: andes-money-amount__fraction
-    # Amazon: a-price-whole
+    # --- DIAGNÓSTICO ---
+    title = soup.title.string.strip() if soup.title else "Sem Título"
+    if "Acesso Negado" in title or "Access Denied" in title or "Robot" in title or "Captcha" in title:
+        print(f"  [BLOQUEIO DETECTADO] O site bloqueou o robô. Título: {title}")
+        return None
+
+    # 1. Tenta por JSON-LD (DADOS ESTRUTURADOS) - A forma mais estável
+    scripts = soup.find_all("script", type="application/ld+json")
+    for script in scripts:
+        try:
+            data = json.loads(script.string)
+            # Pode ser um dicionário ou uma lista de dicionários
+            items = data if isinstance(data, list) else [data]
+            for item in items:
+                # Procura por 'offers' -> 'price'
+                offers = item.get("offers")
+                if offers:
+                    if isinstance(offers, dict):
+                        p = parse_price(offers.get("price"))
+                        if p: return p
+                    elif isinstance(offers, list):
+                        p = parse_price(offers[0].get("price"))
+                        if p: return p
+        except:
+            continue
+
+    # 2. Tenta por seletores específicos das maiores lojas
     specific_selectors = [
-        selector, 
         ".andes-money-amount__fraction", 
         ".a-price-whole", 
         "[itemprop='price']",
@@ -61,33 +89,26 @@ def extract_price_from_html(html, selector=None):
     ]
     
     for s in specific_selectors:
-        if s:
-            element = soup.select_one(s)
-            if element:
-                p = parse_price(element.get_text())
-                if p: return p
+        element = soup.select_one(s)
+        if element:
+            p = parse_price(element.get_text())
+            if p: return p
 
-    # 2. Tenta por Meta Tags (essencial para robôs)
+    # 3. Tenta por Meta Tags
     meta_tags = [
         ("meta", {"property": "product:price:amount"}),
         ("meta", {"property": "og:price:amount"}),
         ("meta", {"itemprop": "price"}),
-        ("input", {"name": "price"}),
     ]
     for tag, attrs in meta_tags:
         element = soup.find(tag, attrs)
         if element:
-            content = element.get("content") or element.get("value")
-            p = parse_price(content)
+            p = parse_price(element.get("content"))
             if p: return p
 
-    # 3. Fallback: Limpa o HTML e busca por R$ no texto puro
-    text_only = soup.get_text(separator=' ')
-    matches = re.findall(r'(?:R\$|RS)\s?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)', text_only)
-    if matches:
-        for m in matches:
-            val = parse_price(m)
-            if val and val > 50.0: return val
+    # 4. Fallback: Logue o início do HTML para debug se nada funcionar
+    print(f"  [DEBUG] Não achei preço em {name}. Título da página capturada: {title}")
+    # print(f"  [DEBUG] Primeiros 200 caracteres: {html[:200].strip()}")
     
     return None
 
@@ -106,6 +127,7 @@ def main():
     print(f"Iniciando monitoramento de {len(products)} produtos via Supabase...")
     
     for product in products:
+        time.sleep(2) # Pequena pausa para não ser bloqueado por velocidade
         p_id = product['id']
         name = product['name']
         url = product['url']
@@ -117,7 +139,7 @@ def main():
         
         try:
             resp = requests.get(url, headers=get_headers(), timeout=20)
-            current_price = extract_price_from_html(resp.text, selector)
+            current_price = extract_price_from_html(resp.text, name)
             
             if current_price is None:
                 print(f"  [AVISO] Preço não encontrado")
