@@ -143,6 +143,10 @@ def send_telegram_message(message):
     except: pass
 
 def main():
+    # Cria uma sessão para manter cookies (parece mais um humano navegando)
+    session = requests.Session()
+    session.headers.update(get_headers())
+    
     # 1. Busca produtos do Supabase
     response = supabase.table("products").select("*").execute()
     products = response.data
@@ -150,18 +154,28 @@ def main():
     print(f"Iniciando monitoramento de {len(products)} produtos via Supabase...")
     
     for product in products:
-        time.sleep(2) # Pequena pausa para não ser bloqueado por velocidade
+        time.sleep(3) # Pausa maior para não assustar o servidor
         p_id = product['id']
         name = product['name']
         url = product['url']
-        selector = product.get('css_selector')
-        target = product.get('target_price')
-        last_price = product.get('current_price') # Usamos o current_price do banco como o 'último'
+        last_price = product.get('current_price')
         
         print(f"Verificando: {name}...")
         
         try:
-            resp = requests.get(url, headers=get_headers(), timeout=20)
+            # Tenta carregar a página com a sessão
+            resp = session.get(url, timeout=30)
+            
+            # Verifica se fomos redirecionados para a home ou login
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            title = soup.title.string if soup.title else ""
+            
+            # Se o título for só "Mercado Livre", tenta um segundo acesso (às vezes o 2º passa)
+            if title.strip() == "Mercado Livre":
+                print(f"  [RE-TENTATIVA] O site tentou nos desviar. Tentando novamente...")
+                time.sleep(2)
+                resp = session.get(url, timeout=30)
+
             current_price = extract_price_from_html(resp.text, name)
             
             if current_price is None:
