@@ -106,21 +106,31 @@ def extract_price_from_html(html, name=""):
             p = parse_price(element.get("content"))
             if p: return p
 
-    # 4. Fallback: Busca Ultra-Agressiva no código-fonte bruto
-    # Remove espaços em branco extras para facilitar o regex
-    raw_clean = re.sub(r'\s+', '', html)
-    # Procura por R$ seguido de um número brasileiro (ex: 1.545,00 ou 1.545)
-    # Pegamos o primeiro valor acima de 100 reais para evitar "preços de parcelas"
-    matches = re.findall(r'R\$(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)', raw_clean)
+    # 4. Fallback: Busca via padrões JSON/Script (Onde o preço fica escondido)
+    # Procura por "price":1545 ou "amount":1545
+    json_patterns = [
+        r'"price":\s?(\d+(?:\.\d+)?)',
+        r'"amount":\s?(\d+(?:\.\d+)?)',
+        r'"price_amount":\s?(\d+(?:\.\d+)?)'
+    ]
+    for pattern in json_patterns:
+        match = re.search(pattern, html)
+        if match:
+            p = parse_price(match.group(1))
+            if p and p > 100.0: return p
+
+    # 5. Busca Ultra-Agressiva no texto limpo (sem tags)
+    text_clean = soup.get_text(separator=' ')
+    # Procura R$ 1.545 ou R$ 1545
+    matches = re.findall(r'(?:R\$|RS)\s?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)', text_clean)
+    if not matches:
+        # Tenta sem o R$ apenas números grandes perto de palavras-chave
+        matches = re.findall(r'(?:preço|valor|total|por)\s?:?\s?R?\$\s?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)', text_clean, re.IGNORECASE)
+    
     if matches:
-        prices = []
         for m in matches:
             val = parse_price(m)
-            if val and val > 100.0: prices.append(val)
-        
-        if prices:
-            # Pegamos o valor mais comum ou o primeiro grande encontrado
-            return prices[0]
+            if val and val > 100.0: return val
 
     print(f"  [DEBUG] Não achei preço em {name}. Título da página: {title}")
     return None
