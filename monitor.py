@@ -169,6 +169,23 @@ def fetch_price_from_search(session, ml_id):
         print(f"  [ERRO FALLBACK] {e}")
     return None
 
+def fetch_price_from_api(session, ml_id):
+    # API Oficial Pública (Geralmente não bloqueia consultas simples)
+    api_url = f"https://api.mercadolibre.com/items/{ml_id}"
+    try:
+        print(f"  [API] Consultando API oficial: {api_url}")
+        resp = session.get(api_url, timeout=20)
+        
+        if resp.status_code == 200:
+            data = resp.json()
+            price = data.get('price')
+            if price:
+                print(f"  [API] Preço encontrado: R$ {price}")
+                return float(price)
+    except Exception as e:
+        print(f"  [ERRO API] {e}")
+    return None
+
 def main():
     # Voltamos para Chrome 120 (mais comum em servidores Linux como o do GitHub)
     session = requests.Session(impersonate="chrome120")
@@ -195,28 +212,33 @@ def main():
         print(f"Verificando: {name}...")
         
         current_price = None
+        ml_id = extract_ml_id(url)
         
-        try:
-            # TENTATIVA 1: Acesso direto
-            resp = session.get(url, timeout=30)
-            
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            title = soup.title.string if soup.title else ""
-            
-            if "Mercado Livre" in title and len(title) < 20: 
-                 print("  [BLOQUEIO] Redirecionado para Home. Tentando Fallback...")
-            else:
-                current_price = extract_price_from_html(resp.text, name)
+        # TENTATIVA 1: API Oficial (A melhor opção se disponível)
+        if ml_id:
+            current_price = fetch_price_from_api(session, ml_id)
 
-            # TENTATIVA 2: Fallback via Busca (se 1 falhou)
-            if current_price is None:
-                ml_id = extract_ml_id(url)
-                if ml_id:
-                    current_price = fetch_price_from_search(session, ml_id)
+        # TENTATIVA 2: Acesso direto HTML (Backup)
+        if current_price is None:
+             try:
+                resp = session.get(url, timeout=30)
+                soup = BeautifulSoup(resp.text, 'html.parser')
+                title = soup.title.string if soup.title else ""
+                
+                if "Mercado Livre" in title and len(title) < 20: 
+                     print("  [BLOQUEIO] Redirecionado para Home.")
+                else:
+                    current_price = extract_price_from_html(resp.text, name)
+             except Exception as e:
+                print(f"  [ERRO HTML] {e}")
 
-            if current_price is None:
-                print(f"  [AVISO] Preço não encontrado após todas tentativas.")
-                continue
+        # TENTATIVA 3: Busca (Último recurso)
+        if current_price is None and ml_id:
+             current_price = fetch_price_from_search(session, ml_id)
+
+        if current_price is None:
+            print(f"  [AVISO] Preço não encontrado após todas tentativas.")
+            continue
             
             if current_price is None:
                 print(f"  [AVISO] Preço não encontrado")
