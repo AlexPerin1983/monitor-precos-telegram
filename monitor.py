@@ -113,54 +113,13 @@ def main():
     
     print(f"Iniciando monitoramento de {len(PRODUCTS)} produtos...")
     
-    for product in PRODUCTS:
-        name = product['name']
-        url = product['url']
-        selector = product.get('css_selector')
-        target = product.get('target_price')
-        
-        print(f"Verificando: {name}...")
-        
-        try:
-            response = requests.get(url, headers=get_headers(), timeout=20)
-            response.raise_for_status()
-            
-            current_price = extract_price_from_html(response.text, selector)
-            
-            if current_price is None:
-                error_msg = f"⚠️ [AVISO] Não foi possível encontrar o preço para {name}. Verifique se o CSS Selector '{selector}' ainda é válido ou se o site mudou."
-                print(error_msg)
-                # Opcional: Descomente a linha abaixo se quiser receber erro no Telegram também
-                # send_telegram_message(error_msg)
-                continue
-
-            last_price = state.get(url)
-            
-            msg = None
-            if last_price is None:
-                # MUDANÇA: Avisa quando o produto é monitorado pela primeira vez
-                msg = f"✅ *Monitoramento Iniciado!*\n\n*Produto:* {name}\n*Preço atual:* R$ {current_price:.2f}\n\nAgora estou vigiando este preço de hora em hora para você!"
-                print(f"  Preço inicial detectado: R$ {current_price:.2f}")
-                new_state[url] = current_price
-            elif abs(current_price - last_price) > 0.01: # Pequena margem para evitar avisos por centavos de arredondamento
-                diff = current_price - last_price
-                trend = "aumentou 📈" if diff > 0 else "baixou 📉"
-                msg = f"🔔 *Alteração de Preço!*\n\n*Produto:* {name}\n*De:* R$ {last_price:.2f}\n*Para:* R$ {current_price:.2f} ({trend})\n\n[Ver no site]({url})"
-                print(f"  [MUDANÇA] R$ {last_price:.2f} -> R$ {current_price:.2f}")
-                new_state[url] = current_price
-            else:
-                print(f"  Sem alteração relevante: R$ {current_price:.2f}")
-
-            # Alerta de valor alvo
-            if target and current_price <= target:
-                target_msg = f"🎯 *Preço Alvo Atingido!*\n\n*Produto:* {name}\n*Preço atual:* R$ {current_price:.2f}\n*Alvo:* R$ {target:.2f}\n\n[Comprar Agora]({url})"
-                send_telegram_message(target_msg)
-
-            if msg:
-                send_telegram_message(msg)
-                
-        except Exception as e:
-            print(f"  [ERRO] Falha ao processar {name}: {e}")
+    print(f"Iniciando TESTE DE CONEXÃO...")
+    
+    # MENSAGEM DE TESTE DIRETO
+    test_msg = "🚀 *Monitor Online!*\n\nO robô rodou com sucesso no GitHub Actions e a conexão com o seu Telegram está perfeita.\n\nPróximo passo: Adicionar links de sites que permitam acesso (evite Amazon/Shopee no GitHub)."
+    
+    send_telegram_message(test_msg)
+    print("Mensagem de teste enviada para o Telegram.")
             
     save_state(new_state)
     print("Monitoramento concluído.")
