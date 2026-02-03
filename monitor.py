@@ -158,6 +158,7 @@ def main():
         p_id = product['id']
         name = product['name']
         url = product['url']
+        target = product.get('target_price')
         last_price = product.get('current_price')
         
         print(f"Verificando: {name}...")
