@@ -1,7 +1,7 @@
 import os
 import json
 import re
-import requests
+from curl_cffi import requests # Biblioteca que imita o navegador real
 from bs4 import BeautifulSoup
 import time
 from supabase import create_client, Client
@@ -14,15 +14,6 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- CONFIGURAÇÃO DO TELEGRAM ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-
-def get_headers():
-    return {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "pt-BR,pt;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
-    }
 
 def parse_price(price_str):
     if not price_str: return None
@@ -140,9 +131,9 @@ def send_telegram_message(message):
     except: pass
 
 def main():
-    # Cria uma sessão para manter cookies (parece mais um humano navegando)
-    session = requests.Session()
-    session.headers.update(get_headers())
+    # Cria uma sessão que, nativamente, age EXATAMENTE como o Chrome 120
+    # Isso resolve o problema do TLS Fingerprint (assinatura digital)
+    session = requests.Session(impersonate="chrome120")
     
     # 1. Busca produtos do Supabase
     response = supabase.table("products").select("*").execute()
