@@ -130,9 +130,48 @@ def send_telegram_message(message):
     try: requests.post(url, json=payload, timeout=10)
     except: pass
 
+def extract_ml_id(url):
+    # Tenta extrair o ID do produto (MLB...) da URL
+    match = re.search(r'(MLB-?\d+)', url)
+    if match:
+        return match.group(1).replace('-', '')
+    return None
+
+def fetch_price_from_search(session, ml_id):
+    # Busca pelo ID na pesquisa (geralmente não tem redirect)
+    search_url = f"https://lista.mercadolivre.com.br/{ml_id}"
+    try:
+        print(f"  [FALLBACK] Tentando buscar preço na pesquisa: {search_url}")
+        resp = session.get(search_url, timeout=30)
+        
+        # O preço na busca costuma estar em .andes-money-amount__fraction
+        # Validamos se o link do resultado contém o ID para garantir que é o produto certo
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        
+        # Pega o primeiro item da lista
+        item = soup.find('li', class_='ui-search-layout__item')
+        if not item:
+            # Tenta layout de grid
+            item = soup.find('div', class_='ui-search-result__wrapper')
+            
+        if item:
+            # Garante que é o mesmo ID
+            link = item.find('a', href=True)
+            if link and ml_id in link['href']:
+                price_elem = item.find('span', class_='andes-money-amount__fraction')
+                if price_elem:
+                    return parse_price(price_elem.get_text())
+                    
+        # Se não achou estruturado, tenta regex na página de busca inteira
+        return extract_price_from_html(resp.text, "Search_Fallback")
+
+    except Exception as e:
+        print(f"  [ERRO FALLBACK] {e}")
+    return None
+
 def main():
-    # Trocando a identidade para Safari (iPhone/Mac) que costuma ter "passe livre"
-    session = requests.Session(impersonate="safari15_5")
+    # Voltamos para Chrome 120 (mais comum em servidores Linux como o do GitHub)
+    session = requests.Session(impersonate="chrome120")
     
     # 1. Busca produtos do Supabase
     response = supabase.table("products").select("*").execute()
@@ -145,7 +184,7 @@ def main():
         p_id = product['id']
         name = product['name']
         
-        # Limpa sujeira da URL (parâmetros de rastreamento que ativam alertas)
+        # Limpa URL
         url = product['url']
         if "?" in url and "_JM" in url:
             url = url.split("?")[0]
@@ -155,21 +194,29 @@ def main():
         
         print(f"Verificando: {name}...")
         
+        current_price = None
+        
         try:
-            # Tenta carregar a página com a sessão Safari
+            # TENTATIVA 1: Acesso direto
             resp = session.get(url, timeout=30)
             
-            # Verifica se fomos redirecionados para a home ou login
             soup = BeautifulSoup(resp.text, 'html.parser')
             title = soup.title.string if soup.title else ""
             
-            # Se o título for só "Mercado Livre", tenta um segundo acesso (às vezes o 2º passa)
-            if title.strip() == "Mercado Livre":
-                print(f"  [RE-TENTATIVA] O site tentou nos desviar. Tentando novamente...")
-                time.sleep(2)
-                resp = session.get(url, timeout=30)
+            if "Mercado Livre" in title and len(title) < 20: 
+                 print("  [BLOQUEIO] Redirecionado para Home. Tentando Fallback...")
+            else:
+                current_price = extract_price_from_html(resp.text, name)
 
-            current_price = extract_price_from_html(resp.text, name)
+            # TENTATIVA 2: Fallback via Busca (se 1 falhou)
+            if current_price is None:
+                ml_id = extract_ml_id(url)
+                if ml_id:
+                    current_price = fetch_price_from_search(session, ml_id)
+
+            if current_price is None:
+                print(f"  [AVISO] Preço não encontrado após todas tentativas.")
+                continue
             
             if current_price is None:
                 print(f"  [AVISO] Preço não encontrado")
