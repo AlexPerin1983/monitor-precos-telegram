@@ -8,10 +8,10 @@ import time
 # --- CONFIGURAÇÃO DOS PRODUTOS ---
 PRODUCTS = [
     {
-        "name": "Tablet Samsung S6 Lite - Shopee",
-        "url": "https://shopee.com.br/search?keyword=tablet%20s6%20lite", # URL de busca como exemplo
-        "css_selector": ".pq66S8", # Seletor comum na Shopee (pode variar)
-        "target_price": 1800.00
+        "name": "Tablet Samsung S6 Lite - Amazon",
+        "url": "https://www.amazon.com.br/dp/B0CX92K4M2", 
+        "css_selector": ".a-price-whole", # Seletor padrão da Amazon
+        "target_price": 2000.00
     },
     # Para adicionar mais, basta copiar o bloco acima e mudar os dados
 ]
