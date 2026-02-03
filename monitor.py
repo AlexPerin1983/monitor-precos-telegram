@@ -182,6 +182,9 @@ def fetch_price_from_api(session, ml_id):
             if price:
                 print(f"  [API] Preço encontrado: R$ {price}")
                 return float(price)
+        else:
+            print(f"  [API] Status Code: {resp.status_code}")
+            print(f"  [API] Response: {resp.text[:200]}...") # Log curto para ver o erro
     except Exception as e:
         print(f"  [ERRO API] {e}")
     return None
