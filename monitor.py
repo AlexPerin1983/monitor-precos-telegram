@@ -183,8 +183,23 @@ def fetch_price_from_api(session, ml_id):
                 print(f"  [API] Preço encontrado: R$ {price}")
                 return float(price)
         else:
-            print(f"  [API] Status Code: {resp.status_code}")
-            print(f"  [API] Response: {resp.text[:200]}...") # Log curto para ver o erro
+            print(f"  [API] Status Code Items: {resp.status_code}")
+            
+        # TENTATIVA 2: API de Busca (Fallback para API Bloqueada)
+        print(f"  [API] Tentando via API de Busca...")
+        search_api_url = f"https://api.mercadolibre.com/sites/MLB/search?q={ml_id}"
+        resp_search = session.get(search_api_url, timeout=20)
+        
+        if resp_search.status_code == 200:
+            data_search = resp_search.json()
+            if data_search.get('results') and len(data_search['results']) > 0:
+                price = data_search['results'][0].get('price')
+                if price:
+                    print(f"  [API BUSCA] Preço encontrado: R$ {price}")
+                    return float(price)
+        else:
+             print(f"  [API BUSCA] Status: {resp_search.status_code}")
+
     except Exception as e:
         print(f"  [ERRO API] {e}")
     return None
