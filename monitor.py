@@ -8,12 +8,12 @@ import time
 # --- CONFIGURAÇÃO DOS PRODUTOS ---
 PRODUCTS = [
     {
-        "name": "Tablet Samsung S6 Lite - Amazon",
-        "url": "https://www.amazon.com.br/dp/B0CX92K4M2", 
-        "css_selector": ".a-price-whole", # Seletor padrão da Amazon
-        "target_price": 2000.00
+        "name": "Produto de Teste (Estável)",
+        # Usando uma página que não bloqueia para validar seu Telegram
+        "url": "https://www.google.com/search?q=preco+iphone+15", 
+        "css_selector": None, 
+        "target_price": 10000.00
     },
-    # Para adicionar mais, basta copiar o bloco acima e mudar os dados
 ]
 
 # --- CONFIGURAÇÃO DO TELEGRAM ---
@@ -23,8 +23,17 @@ STATE_FILE = "state.json"
 
 def get_headers():
     return {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Cache-Control": "max-age=0",
     }
 
 def parse_price(price_str):
