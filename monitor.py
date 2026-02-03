@@ -48,30 +48,46 @@ def parse_price(price_str):
 def extract_price_from_html(html, selector=None):
     soup = BeautifulSoup(html, 'html.parser')
     
-    # 1. Tenta por Meta Tags (Mercado Livre usa muito)
-    meta_price = soup.find("meta", property="product:price:amount") or \
-                 soup.find("meta", property="og:price:amount") or \
-                 soup.find("meta", itemprop="price")
-    if meta_price:
-        p = parse_price(meta_price.get("content"))
-        if p: return p
+    # 1. Tenta por seletores específicos das maiores lojas
+    # Mercado Livre: andes-money-amount__fraction
+    # Amazon: a-price-whole
+    specific_selectors = [
+        selector, 
+        ".andes-money-amount__fraction", 
+        ".a-price-whole", 
+        "[itemprop='price']",
+        "span.priceTag--price",
+        ".price-tag-fraction"
+    ]
+    
+    for s in specific_selectors:
+        if s:
+            element = soup.select_one(s)
+            if element:
+                p = parse_price(element.get_text())
+                if p: return p
 
-    # 2. Tenta pelo seletor CSS se fornecido
-    if selector:
-        element = soup.select_one(selector)
+    # 2. Tenta por Meta Tags (essencial para robôs)
+    meta_tags = [
+        ("meta", {"property": "product:price:amount"}),
+        ("meta", {"property": "og:price:amount"}),
+        ("meta", {"itemprop": "price"}),
+        ("input", {"name": "price"}),
+    ]
+    for tag, attrs in meta_tags:
+        element = soup.find(tag, attrs)
         if element:
-            p = parse_price(element.get_text())
+            content = element.get("content") or element.get("value")
+            p = parse_price(content)
             if p: return p
 
-    # 3. Regex Robusto (R$ 1.545 ou R$ 1.545,00)
-    matches = re.findall(r'(?:R\$|RS)\s?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)', html)
+    # 3. Fallback: Limpa o HTML e busca por R$ no texto puro
+    text_only = soup.get_text(separator=' ')
+    matches = re.findall(r'(?:R\$|RS)\s?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)', text_only)
     if matches:
-        valid_prices = []
         for m in matches:
             val = parse_price(m)
-            if val and val > 50.0: # Filtra valores muito baixos (frete/taxas)
-                valid_prices.append(val)
-        if valid_prices: return valid_prices[0]
+            if val and val > 50.0: return val
     
     return None
 
