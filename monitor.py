@@ -205,9 +205,18 @@ def fetch_price_from_api(session, ml_id):
     return None
 
 def main():
-    # Voltamos para Chrome 120 (mais comum em servidores Linux como o do GitHub)
-    session = requests.Session(impersonate="chrome120")
+    # Trocando para Safari (iPhone) que costuma ter menos restrições que Chrome/Linux
+    session = requests.Session(impersonate="safari15_5")
     
+    # Adicionando headers manuais para reforçar a legitimidade
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Mobile/15E148 Safari/604.1",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": "https://www.mercadolivre.com.br/",
+        "Origin": "https://www.mercadolivre.com.br"
+    })
+
     # 1. Busca produtos do Supabase
     response = supabase.table("products").select("*").execute()
     products = response.data
